@@ -3,6 +3,20 @@
 
 This repo contains a build example of building curl via using a builder added to Parts to build a component via calling the components CMake or Automake build files. It shows off an example of a target scanner that will read the output of a directory and then call various builders to allow items to be installed correctly as well as have paths needed for dependent components.
 
+This sample work in Parts was inspired by https://github.com/SCons/scons/wiki/DynamicSourceGenerator. At the more is used the same idea of calling builders in a scanner. It differs in that this example cannot be made to scale to large build correctly and general do rebuilds correctly. There are a number of reasons for this which I will go over more below. The main issue with this sample is having two or more of these builder depending on output of the others and having scons rebuild correctly. As I expanded the on the example to define a CMake builder I found a number of issues in SCons a quick summary of these that I will go in more detail below are:
+
+1) Value cannot be used as targets in builders
+2) Directories cannot be used as targets in builders
+3) on rebuilds a recusive check for changed nodes is needed ( part of why chaining more than on builder using dynamic scanning logic can fail)
+4) Scanner can be incorrectly called causing bad state to be passed
+   1) builder can be caused more than once. ( The DynamicSourceGenerator tries to get around this via catching an exception, however in practice I found this just put bad state in larger builds causing problems as one builder was called but another way not)
+   2) partial or out of date information was passed in to the builders on the first call to the scanner on a rebuild
+   3) environment values defined in leaf dependent scanner had not been called yet leading to incorrect states when parent builder scanner was called on rebuilds
+5) SCons does not handle Alias node as Sources well on rebuilds
+6) The sample does not make a unque name for the Alias. Which means calling the builder twice will have issues as the node tree will be incorrect. This will need to a number of problem. The most common is a circular dependency in the node tree
+
+For these reasons, there was a need for Parts to override and extend logic on core items in SCons to allow dynamic scanners to work correctly. This is also why it is not really possible to make a native SCons example is not possible or least not as easy to make as a Parts example.
+
 ## How to build
 
 To build this one has to `pip install scons-parts` as well as a few tools. To help with this there is a vscode remote docker setup included to make it easy to build on Windows or Mac. There is also a pipenv PipFile to help with installing a virtual environment.
@@ -84,7 +98,26 @@ This sample is to help show how a scanner can be used to define items to build d
 
 ## The Scanner cases I am showing here
 
-This sample shows two ( well three) builder that uses a dynamic scanner in different ways. Two of them use a Directory SCanner. These are the CMake and AutoMake builder that call cmake or automake/configure projects to build and make an internal install and then call the scanner to define what needs to be installed and shared. For this sample, I redirected the `make install` output to a _destdir location to make it easier to look at. The default location under the _build directory is a longer path and harder to find. There is another issue with VariantDir in Scons that can cause issues make it needed to do this redirection because this sample has the build files defined out of the repo the holds the source. This why the value of `#` is used in some of the paths. Given a possible fix to the existing ( and once documented) `src_dir` keyword in Sconscript() I could address this quirk via alining the build file to think the "src_dir" is the source we checked out. The other uses a custom scanner to help generate an RPM-based on files that are mapped to a given group. This case will read a file to define what files should be added to the rpm.spec file and added to the tar.gz file rpmbuild wants to see.
+This sample shows two ( well three) builder that uses a dynamic scanner in different ways. Two of them use a Directory SCanner. These are the CMake and AutoMake builder that call cmake or automake/configure projects to build and make an internal install and then call the scanner to define what needs to be installed and shared. For this sample, I redirected the `make install` output to a _destdir location to make it easier to look at. The default location under the _build directory is a longer path and harder to find. There is another issue with VariantDir in Scons that can cause issues make it needed to do this redirection because this sample has the build files defined out of the repo the holds the source. This why the value of `#` is used in some of the paths. Given a possible fix to the existing ( and once documented) `src_dir` keyword in Sconscript() I could address this quirk via alining the build file to think the "src_dir" is the source we checked out.
+The general flow of these these builder is to make a chain of two builders. The first builder task is to call a set of actions to create a Makefile. The second builder is to make the directory that the makefile will install items to as scan that area to correctly install and sdk items that need to be shared with other components. In the simplest for the look like something this:
+
+```python
+makefile= env.Command('makefile','Configure')
+outdirectory = env.Command(
+    env.Directory("destdir"),
+    makefile,
+    target_scanner=env.ScanDirectory(
+        env.Directory("destdir") # directory to scan
+    )
+```
+
+There are a lot more details to deal with however, but this is the general flow. The source for the different builder and scanner can be found here:
+
+* AutoMake() - https://bitbucket.org/sconsparts/parts/src/master/src/parts/pieces/automake.py
+* CMake() = https://bitbucket.org/sconsparts/parts/src/master/src/parts/pieces/cmake.py
+* ScanDirectory() - https://bitbucket.org/sconsparts/parts/src/master/src/parts/pieces/directoryscan.py
+
+The other uses a custom scanner to help generate an RPM-based on files that are mapped to a given group. This case will read a file to define what files should be added to the rpm.spec file and added to the tar.gz file rpmbuild wants to see.
 
 ## Overview of Scanners
 
@@ -168,6 +201,6 @@ The major changes I had to monkey patch with SCons or add to parts was:
 2) add some overrides to Directory nodes to allow then to be used correctly with builders.
 
 I could work around with not doing 1) however given the CMake() and AutoMake() builder are a chain of builder calls this was the fastest and quickest way to get this prototype and working. I know both of these builders should have more fixes made to them to make them more useful and more SCons "Tool" like.
-I have issues opened showing issues with Value and Directory node note working as a target for a builder, or more correctly these nodes cannot have builder mapped to them currently. I was going to implement the state logic via the Value node originally. This would have an advantage of the state being stored in the .sconsign.dblite without making lots of files. I hope to improve the system this way. However to get this working using file node just worked better and was easier to debug as I did not need to dump DB state to the screen. The directory was needed for the directory scanner cases and needed me to address some missing logic. There where a few functions that had to be implemented but only exist on the File node class to would allow the scanner to be called correctly. There was also an issue in the Directory node state is not stored the .sconsign.dblite. There is no binfo for directory or value nodes. I added this information for the Dir node class and had to add a check on how the storage logic worked depending if the builder was one defined by the user or was the internal MkdirBuilder builder used by SCons by default to build the directory if it does not exist. This was not to hard to add and allows Directorys to be propper targets for a defined builder when Parts is being used. Hopefully, a cleaned-up version of the monkey patches I did here will be applied to SCons in the future
+I have issues opened showing issues with Value and Directory node note working as a target for a builder, or more correctly these nodes cannot have builder mapped to them currently. I was going to implement the state logic via the Value node originally. This would have an advantage of the state being stored in the .sconsign.dblite without making lots of files. I hope to improve the system this way. However to get this working using file node just worked better and was easier to debug as I did not need to dump DB state to the screen. The directory was needed for the directory scanner cases and needed me to address some missing logic. There where a few functions that had to be implemented but only exist on the File node class to would allow the scanner to be called correctly. There was also an issue in the Directory node state is not stored the .sconsign.dblite. There is no binfo for directory or value nodes. I added this information for the Dir node class and had to add a check on how the storage logic worked depending if the builder was one defined by the user or was the internal MkdirBuilder builder used by SCons by default to build the directory if it does not exist. This was not to hard to add and allows the Directory to be propper targets for a defined builder when Parts is being used. Hopefully, a cleaned-up version of the monkey patches I did here will be applied to SCons in the future
 
 The dynamic scanner I feel is a powerful technique to use in SCons. It is an advanced technique to master correctly that requires some tweaks to the core SCons code to allow it to work correctly at scale.
