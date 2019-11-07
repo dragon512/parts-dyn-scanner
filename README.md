@@ -1,5 +1,5 @@
 
-# File with heading
+# Dynamic scanner example
 
 This repo contains a build example of building curl via using a builder added to Parts to build a component via calling the components CMake or Automake build files. It shows off an example of a target scanner that will read the output of a directory and then call various builders to allow items to be installed correctly as well as have paths needed for dependent components.
 
@@ -11,15 +11,30 @@ The build will report missing packages for Ubuntu and or Fedora. Red Hat and Cen
 
 Given the need packages, tools and compilers are installed correctly one can build everything via saying `scons all` however adding a `-j4` option will speed up the overall build greatly.
 
-### Using VS code is another
+### Using pipenv
+
+If you are on linux and have python3 and pipenv installed. Setting up a virtual enviroment can be as easy as:
+
+```bash
+pipenv install --three
+pipenv shell
+```
+
+If you want to use setup your own enviroment run:
+
+`pip install scons-parts`
+
+to install Parts and SCons on the system. See below about needed system packages to allow the build to work.
+
+### Using VS code remote
 
 If you are using the [VS code](https://code.visualstudio.com/) and you have installed the [remote-container plugin](https://code.visualstudio.com/docs/remote/)containers there is a configuration to allow this to build inside a container. If using these options and you are on windows (and maybe mac) you will want to add the build via saying:
 
 `scons all --cfg-file=docker.cfg`
 
-which will do much of the build in the docker container avoiding issues that will break automake builds because of file permission issues. Keep in mind there is some overhead and depending on the Windows or Mac configuration of docker and possible antivirus software build can be noticeably slow vs building this Linux natively.
+which will do much of the build in the docker container avoiding issues that will break automake builds because of file permission issues. Keep in mind there is some overhead and depending on the Windows or Mac configuration of docker and possible antivirus software build can be noticeably slow vs building this Linux natively. I found a rebuild issues that may be related to a timestamp check being used in the current drop of Parts. This seems to only happen on docker as a native linux build will not show this.
 
-### Packages needed
+### System packages needed
 
 I might have a few extra packages here. I was reducing this from a larger build case I use. Please note Patchelf is needed to help with building the RPMs. the latest version `0.10` works best. You might have to build this for source as most distros have older version of this. If you need to build it this will allow you to build and add to your system quickly:
 
