@@ -1,0 +1,118 @@
+Import('*')
+PartName("rpm")
+
+parent = Component("$PART_ROOT_NAME")
+DependsOn([
+    parent,
+    Component("openssl.rpm"),
+    Component("libssh2.rpm"),
+    Component("nghttp2.rpm"),
+    Component("brotli.rpm")
+])
+
+rpm_vars = [
+    "%define debug_package %{nil}",
+    # prevent stripping
+    "%define __strip /bin/true",
+    "%define short_version {0}".format(env.subst("$PART_SHORT_VERSION")),
+]
+
+description = '''command line tool for transferring data with URL syntax
+ curl is a command line tool for transferring data with URL syntax, supporting
+ DICT, FILE, FTP, FTPS, GOPHER, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS, POP3,
+ POP3S, RTMP, RTSP, SCP, SFTP, SMTP, SMTPS, TELNET and TFTP.
+
+ curl supports SSL certificates, HTTP POST, HTTP PUT, FTP uploading, HTTP form
+ based upload, proxies, cookies, user+password authentication (Basic, Digest,
+ NTLM, Negotiate, kerberos...), file transfer resume, proxy tunneling and a
+ busload of other useful tricks.
+
+Source Url  = ${VCS.SERVER_PATH}
+Git Revision= ${VCS.REVISION}
+
+ '''
+
+url = "https://curl.haxx.se/"
+
+# build optimation tell the system that the group here is full defined
+# once the all export data is known
+env.PackageGroupLocal("${PART_ROOT_ALIAS}")
+env.PackageGroupLocal("${PART_ROOT_ALIAS}-dev")
+
+
+def tweak_curlconfig(node, env):
+    ntype = env.MetaTagValue(node, 'category', 'package')
+    if ntype in ("BIN",) and node.ID.endswith("curl-config"):
+        substdict = {env.subst(parent.DelaySubst("$AUTO_MAKE_DESTDIR")): env.subst("${PACKAGE_ROOT}")}
+        return env.Command(
+            '$BUILD_DIR/_installed_/curl-config',
+            env.Substfile(target="$BUILD_DIR/_installed_/curl-config.in", source=node, SUBST_DICT=substdict, allow_duplicate=True),
+            [
+                Copy('$TARGET', '$SOURCE'),
+                Chmod('$TARGET', 0o755)
+            ],
+            allow_duplicate=True
+        )
+
+
+out = env.RPMPackage(
+    '${NAME}-${VERSION}-${RELEASE}${DIST}.${TARGET_ARCH}.rpm',
+    source=["${PART_ROOT_ALIAS}"],
+    TARGET_ARCH='x86_64',
+    NAME='${MY_RPM_NAME}',
+    VERSION='${PART_VERSION}',
+    RELEASE=1,
+    summary="Build of ${PART_ROOT_NAME}",
+    description=description,
+    url=url,
+    autoreq="no",
+    license='MIT',
+    group="Development/Tools",
+    requires=[
+        "${DEPENDS.openssl.rpm.PKG_RPM}",
+        "${DEPENDS.libssh2.rpm.PKG_RPM}",
+        "${DEPENDS.nghttp2.rpm.PKG_RPM}",
+        "${DEPENDS.brotli.rpm.PKG_RPM}",
+    ],
+    RPM_VARS=rpm_vars,
+    modify_callbacks=[
+        tweak_curlconfig,
+    ]
+)
+
+
+def updatepc(node, env):
+    type = env.MetaTagValue(node, 'category', 'package')
+    if type in ("PKG_CONFIG") and node.ID.endswith(".pc"):
+        substdict = {env.subst(parent.DelaySubst("$AUTO_MAKE_DESTDIR")): env.subst("$PACKAGE_ROOT")}
+        return env.Substfile(target="$BUILD_DIR/_pc_/${SOURCE.file}", source=node, SUBST_DICT=substdict, allow_duplicate=True)
+
+
+out += env.RPMPackage(
+    '${NAME}-${VERSION}-${RELEASE}${DIST}.${TARGET_ARCH}.rpm',
+    source=["${PART_ROOT_ALIAS}-dev"],
+    TARGET_ARCH='x86_64',
+    NAME='${MY_RPM_DEVEL_NAME}',
+    VERSION='${PART_VERSION}',
+    RELEASE=1,
+    summary="Build of ${PART_ROOT_NAME}",
+    description=description,
+    url=url,
+    autoreq="no",
+    license='MIT',
+    group="Development/Tools",
+    requires=[
+        "${MY_RPM_NAME}",
+        "${DEPENDS.openssl.rpm.PKG_RPM_DEVEL}",
+        "${DEPENDS.libssh2.rpm.PKG_RPM_DEVEL}",
+        "${DEPENDS.nghttp2.rpm.PKG_RPM_DEVEL}",
+        "${DEPENDS.brotli.rpm.PKG_RPM_DEVEL}",
+    ],
+    RPM_VARS=rpm_vars,
+    # update some node values based on the package layout values
+    modify_callbacks=[
+        updatepc,
+    ]
+)
+
+env.Alias("dist", env.CCopy("#dist", out))

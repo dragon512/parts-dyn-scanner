@@ -1,0 +1,28 @@
+Import('*')
+PartName("nghttp2")
+PartVersion(GitVersionFromTag("1.0.5.dev"))
+
+# packaging components
+env.Part("#open_source/${PART_NAME}.rpm.part")
+
+DependsOn([
+    Component("jemalloc", requires=REQ.DEFAULT(internal=True)),
+    Component("openssl", requires=REQ.DEFAULT(internal=True)),
+    Component("libevent", requires=REQ.DEFAULT(internal=True)),
+    Component("jansson", requires=REQ.DEFAULT(internal=True)),
+    Component("libev", requires=REQ.DEFAULT(internal=True)),
+])
+
+env.CMake(
+    CMAKE_ARGS=[
+        "-DBUILD_SHARED_LIBS=ON",
+    ],  
+    # overide the auto scanner
+    auto_scanner=dict(
+        InstallInclude=dict(
+            sub_dir="nghttp2",
+            add_to_path=False
+        )
+    )
+)
+

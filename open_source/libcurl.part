@@ -1,0 +1,66 @@
+Import('*')
+PartVersion(
+    GitVersionFromTag(
+        "7.59.0.dev",
+        regex=r'\d+\_\d+\_\d+(?:\_\d+)*',
+        converter=lambda ver, env: ver.replace("_", ".")
+    )
+)
+PartName("libcurl")
+
+openssl = Component("openssl", requires=REQ.DEFAULT(internal=True))
+libssh2 = Component("libssh2", requires=REQ.DEFAULT(internal=True))
+nghttp2 = Component("nghttp2", requires=REQ.DEFAULT(internal=True))
+brotli = Component("brotli", requires=REQ.DEFAULT(internal=True))
+DependsOn([
+    openssl,
+    libssh2,
+    nghttp2,
+    brotli
+])
+
+# packaging components
+env.Part("#open_source/${PART_NAME}.rpm.part")
+
+def tweak_sources(env,build_dir):
+    # copy the files used to generate the makefile/configure files
+    # changes to these file will cause the autoreconf/ and ./configure actions to rerun
+    build_src = env.CCopy(
+                    target=build_dir,
+                    source=[
+                        env.Pattern(src_dir="${CHECK_OUT_DIR}", includes=["*.am","*.ac"]),
+                        ]
+                )
+
+    # copy over the sources needed to build finial bits
+    # changes to these file will cause the make command to re-run
+    source_files = env.CCopy(
+        source=env.Pattern(src_dir="${CHECK_OUT_DIR}", excludes=[".git/*", 'curl-config.in',"*.am","*.ac"]),
+        target=build_dir
+    )
+
+    # edit the curl-config.in file.
+    substdict = {"@REQUIRE_LIB_DEPS@": "Xno"}
+    build_src += env.Substfile(
+        target=build_dir.File("curl-config.in"),
+        source=env.File("${CHECK_OUT_DIR}/curl-config.in"),
+        SUBST_DICT=substdict
+        )
+
+    return (build_src,source_files)
+
+env.AutoMake(
+    copy_src=True,
+    configure_args= [
+    "--with-ssl=${DEPENDS.openssl.DESTDIR_PATH}",
+    "--with-libssh2=${DEPENDS.libssh2.DESTDIR_PATH}",
+    "--with-brotli=${DEPENDS.brotli.DESTDIR_PATH}",
+    "--with-nghttp2=${DEPENDS.nghttp2.DESTDIR_PATH}",
+    'LD_LIBRARY_PATH=${DEPENDS.brotli.DESTDIR_PATH}/lib:\
+${DEPENDS.openssl.DESTDIR_PATH}/lib:\
+${DEPENDS.libssh2.DESTDIR_PATH}/lib:\
+${DEPENDS.nghttp2.DESTDIR_PATH}/lib'
+    ],
+    copy_top = tweak_sources
+)
+

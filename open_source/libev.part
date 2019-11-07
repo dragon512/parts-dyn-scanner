@@ -1,0 +1,18 @@
+Import('*')
+PartName("libev")
+PartVersion(GitVersionFromTag("4.25.0.dev"))
+
+# packaging components
+env.Part("#open_source/${PART_NAME}.rpm.part")
+
+env.AutoMake(
+    copy_src=False,
+    # overide the auto scanner
+    auto_scanner=dict(
+        InstallInclude=dict(
+            sub_dir="libev",
+            add_to_path=False
+        )
+    )
+)
+

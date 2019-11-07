@@ -1,0 +1,80 @@
+Import('*')
+PartName("rpm")
+parent = Component("$PART_ROOT_NAME")
+DependsOn([
+    parent,
+    Component("openssl.rpm")
+])
+
+rpm_vars = [
+    "%define debug_package %{nil}",
+    # prevent stripping
+    "%define __strip /bin/true",
+    "%define short_version {0}".format(env.subst("$PART_SHORT_VERSION")),
+]
+
+description = '''libssh2 is a library implementing the SSH2 protocol as defined by
+Internet Drafts: SECSH-TRANS(22), SECSH-USERAUTH(25),
+SECSH-CONNECTION(23), SECSH-ARCH(20), SECSH-FILEXFER(06)*,
+SECSH-DHGEX(04), and SECSH-NUMBERS(10).
+
+Source Url  = ${VCS.SERVER_PATH}
+Git Revision= ${VCS.REVISION}
+
+ '''
+
+url = "https://www.libssh2.org/"
+# build optimation tell the system that the group here is full defined
+# once the all export data is known
+env.PackageGroupLocal("${PART_ROOT_ALIAS}")
+env.PackageGroupLocal("${PART_ROOT_ALIAS}-dev")
+out = env.RPMPackage(
+    '${NAME}-${VERSION}-${RELEASE}${DIST}.${TARGET_ARCH}.rpm',
+    source=["${PART_ROOT_ALIAS}"],
+    TARGET_ARCH='x86_64',
+    NAME='${MY_RPM_NAME}',
+    VERSION='${PART_VERSION}',
+    RELEASE=1,
+    summary="Build of ${PART_ROOT_NAME}",
+    description=description,
+    url=url,
+    autoreq="no",
+    license='BSD',
+    group="Development/Tools",
+    requires=[
+        "${DEPENDS.openssl.rpm.PKG_RPM}",
+    ],
+    RPM_VARS=rpm_vars,
+)
+
+def updatepc(node, env):
+    type = env.MetaTagValue(node, 'category', 'package')
+    if type in ("PKG_CONFIG") and node.ID.endswith(".pc"):
+        substdict = {env.subst(parent.DelaySubst("$CMAKE_DESTDIR")):env.subst("$PACKAGE_ROOT")}
+        return env.Substfile(target="$BUILD_DIR/_pc_/${SOURCE.file}", source=node, SUBST_DICT=substdict)
+
+out += env.RPMPackage(
+    '${NAME}-${VERSION}-${RELEASE}${DIST}.${TARGET_ARCH}.rpm',
+    source=["${PART_ROOT_ALIAS}-dev"],
+    TARGET_ARCH='x86_64',
+    NAME='${MY_RPM_DEVEL_NAME}',
+    VERSION='${PART_VERSION}',
+    RELEASE=1,
+    summary="Build of ${PART_ROOT_NAME}",
+    description=description,
+    url=url,
+    autoreq="no",
+    license='BSD',
+    group="Development/Tools",
+    requires=[
+        "${MY_RPM_NAME}",
+        "${DEPENDS.openssl.rpm.PKG_RPM_DEVEL}",
+    ],
+    RPM_VARS=rpm_vars,
+    # update some node values based on the package layout values
+    modify_callbacks=[
+        updatepc
+    ]
+)
+
+env.Alias("dist", env.CCopy("#dist", out))

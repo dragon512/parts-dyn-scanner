@@ -1,0 +1,94 @@
+Import('*')
+PartName("rpm")
+parent = Component("$PART_ROOT_NAME")
+DependsOn([
+    parent,
+    Component("openssl.rpm")
+])
+
+rpm_vars = [
+    "%define debug_package %{nil}",
+    # prevent stripping
+    "%define __strip /bin/true",
+    "%define short_version {0}".format(env.subst("$PART_SHORT_VERSION")),
+]
+
+description = '''The libevent API provides a mechanism to execute a callback function
+when a specific event occurs on a file descriptor or after a timeout
+has been reached. libevent is meant to replace the asynchronous event
+loop found in event driven network servers. An application just needs
+to call event_dispatch() and can then add or remove events dynamically
+without having to change the event loop.
+
+Source Url  = ${VCS.SERVER_PATH}
+Git Revision= ${VCS.REVISION}
+
+ '''
+
+def update_hashbang(node, env):
+    if node.ID.endswith(".py"):
+        substdict = {"env python":"env python3"}
+        return env.Substfile(target="$BUILD_DIR/_py_/${SOURCE.file}", source=node, SUBST_DICT=substdict)
+
+url = "https://libevent.org/"
+# build optimation tell the system that the group here is full defined
+# once the all export data is known
+env.PackageGroupLocal("${PART_ROOT_ALIAS}")
+env.PackageGroupLocal("${PART_ROOT_ALIAS}-dev")
+out = env.RPMPackage(
+    '${NAME}-${VERSION}-${RELEASE}${DIST}.${TARGET_ARCH}.rpm',
+    source=["${PART_ROOT_ALIAS}"],
+    TARGET_ARCH='x86_64',
+    NAME='${MY_RPM_NAME}',
+    VERSION='${PART_VERSION}',
+    RELEASE=1,
+    summary="Build of ${PART_ROOT_NAME}",
+    description=description,
+    url=url,
+    autoreq="no",
+    license='BSD',
+    group="Development/Tools",
+    requires=[
+        "${DEPENDS.openssl.rpm.PKG_RPM}",
+    ],
+    RPM_VARS=rpm_vars,
+
+    # update hash bang for py file to python2 or python3
+    modify_callbacks=[
+        update_hashbang
+    ]
+)
+
+def updatepc(node, env):
+    type = env.MetaTagValue(node, 'category', 'package')
+    if type in ("PKG_CONFIG") and node.ID.endswith(".pc"):
+        substdict = {env.subst(parent.DelaySubst("$AUTO_MAKE_DESTDIR")):env.subst("$PACKAGE_ROOT")}
+        return env.Substfile(target="$BUILD_DIR/_pc_/${SOURCE.file}", source=node, SUBST_DICT=substdict)
+
+
+out += env.RPMPackage(
+    '${NAME}-${VERSION}-${RELEASE}${DIST}.${TARGET_ARCH}.rpm',
+    source=["${PART_ROOT_ALIAS}-dev"],
+    TARGET_ARCH='x86_64',
+    NAME='${MY_RPM_DEVEL_NAME}',
+    VERSION='${PART_VERSION}',
+    RELEASE=1,
+    summary="Build of ${PART_ROOT_NAME}",
+    description=description,
+    url=url,
+    autoreq="no",
+    license='BSD',
+    group="Development/Tools",
+    requires=[
+        "${MY_RPM_NAME}",
+        "${DEPENDS.openssl.rpm.PKG_RPM_DEVEL}",
+    ],
+    RPM_VARS=rpm_vars,
+
+    # update some node values based on the package layout values
+    modify_callbacks=[
+        updatepc
+    ]
+)
+
+env.Alias("dist", env.CCopy("#dist", out))

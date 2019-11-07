@@ -1,0 +1,9 @@
+Import('*')
+PartName("brotli")
+PartVersion(GitVersionFromTag("1.0.5.dev"))
+
+# packaging components
+env.Part("#open_source/${PART_NAME}.rpm.part")
+
+env.CMake()
+

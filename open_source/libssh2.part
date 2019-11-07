@@ -1,0 +1,18 @@
+Import('*')
+PartName("libssh2")
+PartVersion(GitVersionFromTag("1.8.0.dev"))
+DependsOn([
+    Component("openssl")
+])
+
+# packaging components
+env.Part("#open_source/${PART_NAME}.rpm.part")
+
+env.CMake(CMAKE_ARGS=[
+    "-DBUILD_SHARED_LIBS=ON",
+    #"-DOPENSSL_ROOT_DIR=${DEPENDS.openssl.SDK}",
+    "-DENABLE_GEX_NEW=ON",
+    "-DCLEAR_MEMORY=ON",
+    "-DCMAKE_INSTALL_LIBDIR=lib",
+    "-DENABLE_ZLIB_COMPRESSION=ON"
+    ])

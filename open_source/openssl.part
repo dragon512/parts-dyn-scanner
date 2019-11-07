@@ -1,0 +1,42 @@
+
+Import('*')
+PartName("openssl")
+PartVersion(
+    GitVersionFromTag(
+        "1.1.1.unknown",
+        regex=r'\d+\_\d+\_\d+[a-z]',
+        converter=lambda ver, env: ver.replace("_", ".")
+    )
+)
+
+# packaging components
+env.Part("#open_source/${PART_NAME}.rpm.part")
+
+env.AutoMake(
+    copy_src=True,
+    copy_top=True,
+    autoreconf=None,  # this is no autoconf.. so skip this step
+    configure="Configure",
+    configure_args=[
+        '-DSSL_ALLOW_ADH', 'enable-ec_nistp_64_gcc_128',
+        "--openssldir=$AUTO_MAKE_DESTDIR",
+        'linux-x86_64',
+        'shared',
+        # this is normally set by Parts.. but openssl does not allow us to set flags in Configure
+        '--prefix=$CONFIGURE_PREFIX',
+    ],
+    # this allows us to call make depends to "finialize" what finial makefile. Prevents a rebuild.
+    # however this sort of build twice
+    configure_post_actions='cd ${{TARGET.dir}} && make CC=$CC CXX=$CXX CPPFLAGS="$CCFLAGS $CPPFLAGS $_CPPDEFFLAGS $_ABSCPPINCFLAGS" CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" V=1 $(-j{jobs}$) && make depend V=1 $(-j{jobs}$)'.format(jobs=env.GetOption('num_jobs')),
+    # we have to do advance logic for openssl
+    auto_configure_args=False,    
+    AUTOMAKE_BUILD_ARGS='CC=$CC CXX=$CXX CPPFLAGS="$CCFLAGS $CPPFLAGS $_CPPDEFFLAGS $_ABSCPPINCFLAGS" CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS"',
+    # need to make sure we don't export the engine-1.1 so files
+    auto_scanner=dict(
+        InstallLib=dict(
+            source=lambda node, env: [
+                env.Pattern(src_dir=node.Dir("lib"), includes=env["INSTALL_LIB_PATTERN"] + env["INSTALL_API_LIB_PATTERN"], recursive=False),
+            ],
+        ),
+    ),
+)

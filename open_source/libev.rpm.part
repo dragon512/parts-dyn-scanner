@@ -1,0 +1,68 @@
+Import('*')
+PartName("rpm")
+parent = Component("$PART_ROOT_NAME")
+DependsOn([
+    parent,
+])
+
+rpm_vars = [
+    "%define debug_package %{nil}",
+    # prevent stripping
+    "%define __strip /bin/true",
+    "%define short_version {0}".format(env.subst("$PART_SHORT_VERSION")),
+]
+
+description = '''Libev is modeled (very loosely) after libevent and the Event Perl
+module, but is faster, scales better and is more correct, and also more featureful.
+And also smaller.
+
+Source Url  = ${VCS.SERVER_PATH}
+Git Revision= ${VCS.REVISION}
+
+'''
+
+url = "http://software.schmorp.de/pkg/libev.html"
+
+# build optimation tell the system that the group here is full defined
+# once the all export data is known
+env.PackageGroupLocal("${PART_ROOT_ALIAS}")
+env.PackageGroupLocal("${PART_ROOT_ALIAS}-dev")
+
+out = env.RPMPackage(
+    '${NAME}-${VERSION}-${RELEASE}${DIST}.${TARGET_ARCH}.rpm',
+    source=["${PART_ROOT_ALIAS}"],
+    TARGET_ARCH='x86_64',
+    NAME='${MY_RPM_NAME}',
+    VERSION='${PART_VERSION}',
+    RELEASE=1,
+    summary="Build of ${PART_ROOT_NAME}",
+    description=description,
+    url=url,
+    autoreq="no",
+    license='BSD',
+    group="Development/Tools",
+    requires=[
+    ],
+    RPM_VARS=rpm_vars,
+)
+
+out += env.RPMPackage(
+    '${NAME}-${VERSION}-${RELEASE}${DIST}.${TARGET_ARCH}.rpm',
+    source=["${PART_ROOT_ALIAS}-dev"],
+    TARGET_ARCH='x86_64',
+    NAME='${MY_RPM_DEVEL_NAME}',
+    VERSION='${PART_VERSION}',
+    RELEASE=1,
+    summary="Build of ${PART_ROOT_NAME}",
+    description=description,
+    url=url,
+    autoreq="no",
+    license='BSD',
+    group="Development/Tools",
+    requires=[
+        "${MY_RPM_NAME}",
+    ],
+    RPM_VARS=rpm_vars
+)
+
+env.Alias("dist", env.CCopy("#dist", out))

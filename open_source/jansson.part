@@ -1,0 +1,9 @@
+Import('*')
+PartName("jansson")
+PartVersion(GitVersionFromTag("2.12.0.dev"))
+
+# packaging components
+env.Part("#open_source/${PART_NAME}.rpm.part")
+env.CMake(
+    CMAKE_ARGS=["-DJANSSON_BUILD_SHARED_LIBS=TRUE","-DJANSSON_BUILD_DOCS=OFF"]
+    )

@@ -1,0 +1,15 @@
+Import('*')
+PartName("libevent")
+PartVersion(GitVersionFromTag("2.1.8.dev"))
+
+# packaging components
+env.Part("#open_source/${PART_NAME}.rpm.part")
+
+DependsOn([
+    Component("openssl", requires=REQ.DEFAULT),
+])
+
+env.AutoMake(
+    copy_src=False,    
+    )
+

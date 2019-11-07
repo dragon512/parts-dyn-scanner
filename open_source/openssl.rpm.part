@@ -1,0 +1,92 @@
+Import('*')
+PartName("rpm")
+
+parent = Component("$PART_ROOT_NAME")
+DependsOn([
+    parent,
+])
+
+rpm_vars = [
+    "%define debug_package %{nil}",
+    # prevent stripping
+    "%define __strip /bin/true",
+    "%define short_version {0}".format(env.subst("$PART_SHORT_VERSION")),
+]
+
+description = '''Secure Sockets Layer toolkit - cryptographic utility
+ This package is part of the OpenSSL project's implementation of the SSL
+ and TLS cryptographic protocols for secure communication over the
+ Internet.
+ .
+ It contains the general-purpose command line binary /usr/bin/openssl,
+ useful for cryptographic operations such as:
+  * creating RSA, DH, and DSA key parameters;
+  * creating X.509 certificates, CSRs, and CRLs;
+  * calculating message digests;
+  * encrypting and decrypting with ciphers;
+  * testing SSL/TLS clients and servers;
+  * handling S/MIME signed or encrypted mail.
+
+Source Url  = ${VCS.SERVER_PATH}
+Git Revision= ${VCS.REVISION}
+
+'''
+
+url = "https://www.openssl.org/"
+# build optimation tell the system that the group here is full defined
+# once the all export data is known
+env.PackageGroupLocal("${PART_ROOT_ALIAS}")
+env.PackageGroupLocal("${PART_ROOT_ALIAS}-dev")
+# because of the risk of openssl breaking
+# and the need to allow 1.1.0 or 1.1.1 side by side installs
+# we use three letters not 2
+env["MY_RPM_NAME"] = '${RPM_PREFIX}${PART_ROOT_NAME}${PartVersion()[0:3][:-1]}'
+env["PACKAGE_ROOT"] = "$MY_ROOT_DIR/${PART_ROOT_NAME}/${PartVersion()[0:3][:-1]}"
+out = env.RPMPackage(
+    '${NAME}-${VERSION}-${RELEASE}${DIST}.${TARGET_ARCH}.rpm',
+    source=["${PART_ROOT_ALIAS}"],
+    TARGET_ARCH='x86_64',
+    NAME='${MY_RPM_NAME}',
+    VERSION='${PART_VERSION}',
+    RELEASE=1,
+    summary="Build of ${PART_ROOT_NAME}",
+    description=description,
+    url=url,
+    autoreq="no",
+    license='OpenSSL',
+    group="Development/Tools",
+    requires=[],
+    RPM_VARS=rpm_vars,
+)
+
+def updatepc(node, env):
+    type = env.MetaTagValue(node, 'category', 'package')
+    if type in ("PKG_CONFIG") and node.ID.endswith(".pc"):
+        substdict = {env.subst("$AUTO_MAKE_DESTDIR"):env.subst("$PACKAGE_ROOT")}
+        return env.Substfile(target="$BUILD_DIR/_pc_/${SOURCE.file}", source=node, SUBST_DICT=substdict)
+
+out += env.RPMPackage(
+    '${NAME}-${VERSION}-${RELEASE}${DIST}.${TARGET_ARCH}.rpm',
+    source=["${PART_ROOT_ALIAS}-dev"],
+    TARGET_ARCH='x86_64',
+    NAME='${MY_RPM_DEVEL_NAME}',
+    VERSION='${PART_VERSION}',
+    RELEASE=1,
+    summary="Build of ${PART_ROOT_NAME}",
+    description=description,
+    url=url,
+    autoreq="no",
+    license='OpenSSL',
+    group="Development/Tools",
+    # openssl is being viewed sensitive to the a.b.c level
+    requires=[
+        "oath-openssl${PartVersion()[0:3][:-1]}",
+    ],
+    RPM_VARS=rpm_vars,
+    # update some node values based on the package layout values
+    modify_callbacks=[
+        updatepc
+    ]
+)
+
+env.Alias("dist", env.CCopy("#dist", out))

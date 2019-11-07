@@ -1,0 +1,55 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+\.parts\.cache
+\_*
+
+\.sconsign\.dblite
+
+logs/
+
+\.vscode/settings\.json
+*.tar
+*.rpm
+
+bootstrap_env/*
+config.log
+
+build-env/*
+
+*.pyc
+
+deactivate_run\.sh
+
+activate_run\.sh
+.vscode/ipch/*
